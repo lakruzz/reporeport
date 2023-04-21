@@ -1,45 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
-import json
-import subprocess
 import sys
+sys.path.append("classes")
 
-# Call the GitHub API to get the list of collaborators for the specified repository
-
-
-def get_collaborators(org, repo):
-    """Get the list of collaborators for a repository.
-
-    Args:
-        org (str): The GitHub organization or user
-        repo (str): The name of the repository
-
-    Returns:
-        list: A list of dictionaries containing the login and html_url fields for each collaborator
-    """
-
-    try:
-        # Call the GitHub API to get the list of collaborators for the specified repository
-        response = subprocess.run(
-            ['gh', 'api', f'repos/{org}/{repo}/contributors'], capture_output=True, text=True, check=True)
-
-        # Parse the JSON output of the API call
-        collaborators = json.loads(response.stdout)
-
-        # Extract the html_url and login fields for each collaborator
-        collaborator_info = [{'html_url': collaborator['html_url'],
-                              'login': collaborator['login']} for collaborator in collaborators]
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error: {e.stderr}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    return collaborator_info
-
+from repo import Repo
 
 if __name__ == "__main__":
 
@@ -59,23 +24,11 @@ if __name__ == "__main__":
         # Extract the organization and repository name from each line in the file
         for repo in repos:
             org, repo_name = repo.split('/', maxsplit=1)
-            collaborator_info = get_collaborators(org, repo_name)
-            # Print the results
-            print(
-                f"\n[{org}/{repo_name}](https://github.com/{org}/{repo_name})")
-            for collaborator in collaborator_info:
-                print(
-                    f"- [{collaborator['login']}]({collaborator['html_url']})")
+            Repo.full_report(org, repo_name)
 
     elif args.org is not None and args.repo is not None:
-        collaborator_info = get_collaborators(args.org, args.repo)
 
-        # Print the results
-        print(
-            f"\n[{args.org}/{args.repo}](https://github.com/{args.org}/{args.repo})")
-        for collaborator in collaborator_info:
-            print(
-                f"- [{collaborator['login']}]({collaborator['html_url']})")
+        Repo.full_report(args.org, args.repo)
 
     else:
         print("Error: You must specify either --file or both --org and --repo", file=sys.stderr)
