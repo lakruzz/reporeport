@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+
+# The script uses the argparse module to define the command-line arguments. It then calls the GitHub API to get the list of collaborators for the specified repository. The API call is made using the gh command-line tool. The gh tool is a wrapper around the GitHub API. It is installed as part of the GitHub CLI. The API call is made using the subprocess module. The output of the API call is parsed using the json module. The results are then printed to the console.
+
+import argparse
+import json
+import subprocess
+import sys
+
+def get_collaborators(org, repo):
+    """Get the list of collaborators for a repository.
+
+    Args:
+        org (str): The GitHub organization or user
+        repo (str): The name of the repository
+
+    Returns:
+        list: A list of dictionaries containing the login and html_url fields for each collaborator
+    """
+
+
+    try:
+        # Call the GitHub API to get the list of collaborators for the specified repository
+        response = subprocess.run(
+            ['gh', 'api', f'repos/{org}/{repo}/collaborators?affiliation=direct'], capture_output=True, text=True, check=True)
+    
+        # Parse the JSON output of the API call
+        collaborators = json.loads(response.stdout)
+    
+        # Extract the html_url and login fields for each collaborator
+        collaborator_info = [{'html_url': collaborator['html_url'],
+                              'login': collaborator['login']} for collaborator in collaborators]
+    
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    return collaborator_info
+
+if __name__ == "__main__":
+    # Define command-line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--org', required=True, help='The GitHub organization or user')
+    parser.add_argument('--repo', required=True, help='The name of the repository')
+    args = parser.parse_args()
+
+    collaborators = get_collaborators({args.org}, {args.repo})
+
+    # Print the results
+    print(
+      f"Collaborators for [{args.org}/{args.repo}](https://github.com/{args.org}/{args.repo}):")
+
+    for collaborator in collaborators:
+      print(f"-  [{collaborator['login']}]({collaborator['html_url']})")
+    
