@@ -1,69 +1,78 @@
 import subprocess
 import json
+import sys
 
 class Repo:
-    def __init__(self, org, repo):
-        self.org = org
-        self.repo = repo
-        self.collaborators = self.__get_collaborators()
+    def __init__(self, org_name, repo_name):
+        self.org_name = org_name
+        self.repo_name = repo_name
+        self.repo = self.__query_github(f'repos/{self.org_name}/{self.repo_name}')
+        self.contributors = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
+        self.issues = self.__query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
+        self.closed_issues_count = sum(1 for element in self.issues if element['state'] == 'closed')
+        self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')        
+        self.open_pr_count = sum(1 for element in self.prs if element['state'] == 'open')
+        self.closed_pr_count = sum(1 for element in self.prs if element['state'] == 'closed')
 
     @staticmethod
-    def full_report(org, repo):
-        my_ghrepo = Repo(org, repo)
-        my_ghrepo.md_title()
-        my_ghrepo.md_collaborators()
-          
-    # Call the GitHub API to get the list of collaborators for the specified repository
-    def __get_collaborators(self):
-        """Get the list of collaborators for a repository.
+    def full_report(org_name, repo_name):
+        my_ghrepo = Repo(org_name, repo_name)
+        my_ghrepo.md_repo()
+        my_ghrepo.md_contributors()
+        
+    def __query_github(self, ghapi):
+        """
+        Query GitHub's API. 
+        More details at https://docs.github.com/en/rest
 
         Args:
-            org (str): The GitHub organization or user
-            repo (str): The name of the repository
+            api (str): The exact API to query GitHub
 
         Returns:
-            list: A list of dictionaries containing the login and html_url fields for each collaborator
+            json: The reply from the query
         """
-
+        
         try:
-            # Call the GitHub API to get the list of collaborators for the specified repository
+            # Call the GitHub API
             response = subprocess.run(
-                ['gh', 'api', f'repos/{self.org}/{self.repo}/contributors'], capture_output=True, text=True, check=True)
+                ['gh', 'api', ghapi], capture_output=True, text=True, check=True)
 
             # Parse the JSON output of the API call
-            collaborators = json.loads(response.stdout)
-
-            # Extract the html_url and login fields for each collaborator
-            collaborator_info = [{'html_url': collaborator['html_url'],
-                                  'login': collaborator['login']} for collaborator in collaborators]
+            return json.loads(response.stdout)
 
         except subprocess.CalledProcessError as e:
             print(f"Error: {e.stderr}", file=sys.stderr)
             sys.exit(1)
-        except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
 
-        return collaborator_info
-
-    def md_title(self):
-        """Output in MarkDown the title for the repository.
+    def md_repo(self):
+        """Output in MarkDown the details of the repository.
 
         Returns:
             None
         """
 
-        # Print the results
+        # Print the full name of the repo in a header and link to both org and repo
         print(
-            f"\n[{self.org}/{self.repo}](https://github.com/{self.org}/{self.repo})")
+            f"## [{self.repo['owner']['login']}]({self.repo['owner']['html_url']})/[{self.repo['name']}]({self.repo['html_url']})")
+        
+        # Print the description of the repo if it exists
+        if self.repo['description'] is not None:
+            print( f"\n_{self.repo['description']}_")
+            
+        # Print the number of open and closed issues
+        print(f"\n### Issues\n\nOpen: {self.repo['open_issues_count']}<br/>\nClosed: {self.closed_issues_count}")
 
-    def md_collaborators(self):
-        """Qutput in MarkDown the list of collaborators for the repository.
+        # Print the number of open and closed prs
+        print(f"\n### Pull requests\n\nOpen: {self.open_pr_count}<br/>\nClosed: {self.closed_pr_count}")
+                  
+    def md_contributors(self):
+        """Qutput in MarkDown the list of contributors to the repository.
 
         Returns:
             None
         """
-        for collaborator in self.collaborators:
+        print(f"\n### Contributors")
+        for contributor in self.contributors:
             print(
-                f"- [{collaborator['login']}]({collaborator['html_url']})")
+                f"- [{contributor['login']}]({contributor['html_url']}) ({contributor['contributions']})")
 
