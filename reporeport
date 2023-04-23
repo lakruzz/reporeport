@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 
-import argparse
+import subprocess
+import json
 import sys
 sys.path.append("classes")
+
+
+# Try to import the argparse module
+try:
+    import argparse
+except ImportError:
+    # If the module is not found, install it
+    print("argparse module not found. Installing...")
+    subprocess.check_call(["pip", "install", "argparse"])
+    # Try to import the module again
+    importlib.import_module("argparse")
 
 from repo import Repo
 
