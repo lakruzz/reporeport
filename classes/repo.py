@@ -24,7 +24,6 @@ class Repo:
         my_ghrepo = Repo(org_name, repo_name)
         my_ghrepo.md_repo()
         my_ghrepo.md_contributors()
-        my_ghrepo.md_commits()
         
     def __query_github(self, ghapi):
         """
@@ -94,17 +93,4 @@ pie showData title Contributors (number of commits)
             mermaid += f'"{contributor["login"]}" : {contributor["contributions"]}\n'
         print (mermaid + "\n```\n")
     
-    def md_commits(self):
-        """Output in MarkDown the list of commits to the repository.
-
-        Returns:
-            None
-        """
-        print(f"\n<deatils><summary><h3>Commits</h3></summary>\n")
-        for commit in self.commits:
-            print(
-                f"- [{commit['commit']['message']}]({commit['html_url']})")
-            print(f"  by [{commit['author']['login']}]({commit['author']['html_url']})")
-            print(f"  on {commit['commit']['author']['date']}\n")
-            print("</details>\n")
 
