@@ -3,7 +3,7 @@
 import subprocess
 import json
 import sys
-sys.path.append("classes")
+sys.path.append("./classes")
 
 
 # Try to import the argparse module
