@@ -9,16 +9,22 @@ class Repo:
         self.repo = self.__query_github(f'repos/{self.org_name}/{self.repo_name}')
         self.contributors = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
         self.issues = self.__query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
-        self.closed_issues_count = sum(1 for element in self.issues if element['state'] == 'closed')
-        self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')        
-        self.open_pr_count = sum(1 for element in self.prs if element['state'] == 'open')
-        self.closed_pr_count = sum(1 for element in self.prs if element['state'] == 'closed')
-
+        self.closed_issues_count = self.__get_element_count(self.issues, 'state', 'closed')
+        self.open_issues_count = self.repo['open_issues_count']
+        self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
+        self.closed_prs_count = self.__get_element_count(self.prs, 'state', 'closed')
+        self.open_prs_count = self.__get_element_count(self.prs, 'state', 'open')
+        self.commits = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
+    
+    def __get_element_count(self, json, key, value,):
+        return sum(1 for element in json if element[key] == value)
+    
     @staticmethod
     def full_report(org_name, repo_name):
         my_ghrepo = Repo(org_name, repo_name)
         my_ghrepo.md_repo()
         my_ghrepo.md_contributors()
+        my_ghrepo.md_commits()
         
     def __query_github(self, ghapi):
         """
@@ -58,12 +64,18 @@ class Repo:
         # Print the description of the repo if it exists
         if self.repo['description'] is not None:
             print( f"\n_{self.repo['description']}_")
-            
-        # Print the number of open and closed issues
-        print(f"\n### Issues\n\nOpen: {self.repo['open_issues_count']}<br/>\nClosed: {self.closed_issues_count}")
-
-        # Print the number of open and closed prs
-        print(f"\n### Pull requests\n\nOpen: {self.open_pr_count}<br/>\nClosed: {self.closed_pr_count}")
+        
+        # Print a mermaid pie with numbers of open and closed issues and PRs
+        template = '''
+### Issues and PRs\n
+```mermaid
+pie showData title Issues and PRs
+"Issues: open" : {}
+"Issues: closed" : {}
+"PRs : open" : {}
+"PRs :closed" : {}
+```'''
+        print (template.format(self.open_issues_count, self.closed_issues_count, self.open_prs_count, self.closed_prs_count))
                   
     def md_contributors(self):
         """Qutput in MarkDown the list of contributors to the repository.
@@ -71,8 +83,28 @@ class Repo:
         Returns:
             None
         """
-        print(f"\n### Contributors")
+        print(f"\n### Contributors\n")
+        mermaid = '''
+```mermaid
+pie showData title Contributors (number of commits)
+'''
         for contributor in self.contributors:
             print(
                 f"- [{contributor['login']}]({contributor['html_url']}) ({contributor['contributions']})")
+            mermaid += f'"{contributor["login"]}" : {contributor["contributions"]}\n'
+        print (mermaid + "\n```\n")
+    
+    def md_commits(self):
+        """Output in MarkDown the list of commits to the repository.
+
+        Returns:
+            None
+        """
+        print(f"\n<deatils><summary><h3>Commits</h3></summary>\n")
+        for commit in self.commits:
+            print(
+                f"- [{commit['commit']['message']}]({commit['html_url']})")
+            print(f"  by [{commit['author']['login']}]({commit['author']['html_url']})")
+            print(f"  on {commit['commit']['author']['date']}\n")
+            print("</details>\n")
 
