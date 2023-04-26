@@ -3,6 +3,8 @@ import os
 import subprocess
 import json
 import sys
+import base64
+import re
 class_path = os.path.dirname(os.path.abspath(__file__))+"/classes"
 sys.path.append(class_path)
 
