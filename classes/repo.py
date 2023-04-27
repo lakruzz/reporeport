@@ -10,55 +10,54 @@ class Repo:
     def __init__(self, org_name, repo_name):
         self.org_name = org_name
         self.repo_name = repo_name
-        self.repo = self.__query_github(f'repos/{self.org_name}/{self.repo_name}')
-        self.contributors = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
-        self.issues = self.__query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
+        _,self.repo = self.__query_github(f'repos/{self.org_name}/{self.repo_name}')
+        _,self.contributors = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
+        _,self.issues = self.__query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
         self.closed_issues_count = self.__get_element_count(self.issues, 'state', 'closed')
         self.open_issues_count = self.repo['open_issues_count']
-        self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
+        _,self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
         self.closed_prs_count = self.__get_element_count(self.prs, 'state', 'closed')
         self.open_prs_count = self.__get_element_count(self.prs, 'state', 'open')
-        self.commits = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
+        _,self.commits = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
         
     
     def __get_element_count(self, json, key, value,):
         return sum(1 for element in json if element[key] == value)
     
-    def __get_codeowners(self):
+    def __get_codeowners(self,markdown=True):
         # Retrieve the CODEOWNERS file content and decode it from base64
-        try:
-            codeowners_file = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CODEOWNERS')  
-            codeowners = base64.b64decode(codeowners_file['content']).decode('utf-8')
-
-            print (f"CODEOWNERS file content: {codeowners}")
-
-            # Regular expression pattern to match mentions of @user or @team
-            owner_pattern = r"@([\w\-\/]+)"
-
-            # Loop through each line in the codeowners file, extract the owners and print them
-            owners = []
-            for line in codeowners.split("\n"):
-                # Skip comments and blank lines
-                if line.lstrip().startswith("#") or not line.strip():
-                    continue
-                
-                # Use the regular expression to find all owners in the line
-                line_owners = re.findall(owner_pattern, line)
-                # Remove duplicates and print the owners found in the line
-                if line_owners:
-                    owners.extend(line_owners)
-            return list(set(owners))
-        except:
-            return  f"_CODEOWNERS file not found not found in the repository root_ "
-    
+           status,codeowners_file = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CODEOWNERS',False)  
+           if status != 0:
+               if markdown == True:
+                   print (f"- [ ] CODEOWNERS file")
+               else:
+                   print (f"CODEOWNERS file not found") 
+           else:
+               codeowners = base64.b64decode(codeowners_file['content']).decode('utf-8')
+               # Regular expression pattern to match mentions of @user or @team
+               owner_pattern = r"@([\w\-\/]+)"
+               # Loop through each line in the codeowners file, extract the owners and print them
+               owners = []
+               for line in codeowners.split("\n"):
+                   # Skip comments and blank lines
+                   if line.lstrip().startswith("#") or not line.strip():
+                       continue
+                   
+                   # Use the regular expression to find all owners in the line
+                   line_owners = re.findall(owner_pattern, line)
+                   # Remove duplicates and print the owners found in the line
+                   if line_owners:
+                       owners.extend(line_owners)
+               return list(set(owners))
+   
     @staticmethod
     def full_report(org_name, repo_name):
         my_ghrepo = Repo(org_name, repo_name)
         my_ghrepo.md_repo()
         my_ghrepo.md_contributors()
-        print (my_ghrepo.__get_codeowners())
+        my_ghrepo.__get_codeowners(True)
         
-    def __query_github(self, ghapi):
+    def __query_github(self, ghapi:str, die_on_error:bool=True):
         """
         Query GitHub's API. 
         More details at https://docs.github.com/en/rest
@@ -69,18 +68,20 @@ class Repo:
         Returns:
             json: The reply from the query
         """
-        
         try:
             # Call the GitHub API
             response = subprocess.run(
                 ['gh', 'api', ghapi], capture_output=True, text=True, check=True)
-
+            
             # Parse the JSON output of the API call
-            return json.loads(response.stdout)
+            return response.returncode,json.loads(response.stdout)
 
         except subprocess.CalledProcessError as e:
-            print(f"Error: {e.stderr}", file=sys.stderr)
-            sys.exit(1)
+            if die_on_error:
+                print(f"Error: {e.stderr}", file=sys.stderr)
+                sys.exit(1)
+            else:
+                return e.returncode, f"Error: {e.stderr}"
 
     def md_repo(self):
         """Output in MarkDown the details of the repository.
@@ -121,7 +122,7 @@ pie showData title Issues and PRs
 pie showData title Contributors (number of commits)
 '''
         for contributor in self.contributors:
-            user = self.__query_github(f"users/{contributor['login']}")
+            _,user = self.__query_github(f"users/{contributor['login']}")
             bullet = '- [ ]'
             name = '_Name is not set - [fix it!]({change_ghname_url})_ '
             if user['name'] is not None:

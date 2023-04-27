@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('--repo', help='The name of the repository')
     parser.add_argument('--full_name', help='The full name of the repository in the form "org/repo"')
     parser.add_argument(
-        '--file', help='A file containing a list of repositories')
+        '--file', help='A file containing a list of full names (user/repo) of repositories')
     args = parser.parse_args()
 
     if args.file is not None:
@@ -51,5 +51,5 @@ if __name__ == "__main__":
         Repo.full_report(org, repo_name)
 
     else:
-        print("Error: You must specify either --file or both --org and --repo", file=sys.stderr)
+        print("Error: You must specify either --file or --full_name or both --org and --repo", file=sys.stderr)
         sys.exit(1)
