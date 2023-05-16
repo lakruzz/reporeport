@@ -2,7 +2,12 @@ import subprocess
 import json
 import sys
 import base64
-import re
+import os
+
+class_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(class_path)
+
+from ghutils import Ghutils
 
 class Repo:
     change_ghname_url = "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-personal-account-settings/changing-your-github-username#changing-your-username"
@@ -10,20 +15,17 @@ class Repo:
     def __init__(self, org_name, repo_name):
         self.org_name = org_name
         self.repo_name = repo_name
-        _,self.repo = self.__query_github(f'repos/{self.org_name}/{self.repo_name}')
-        _,self.contributors = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
-        _,self.issues = self.__query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
-        self.closed_issues_count = self.__get_element_count(self.issues, 'state', 'closed')
+        _,self.repo = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}')
+        _,self.contributors = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
+        _,self.issues = Ghutils.query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
+        self.closed_issues_count = Ghutils.get_element_count(self.issues, 'state', 'closed')
         self.open_issues_count = self.repo['open_issues_count']
-        _,self.prs = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
-        self.closed_prs_count = self.__get_element_count(self.prs, 'state', 'closed')
-        self.open_prs_count = self.__get_element_count(self.prs, 'state', 'open')
-        _,self.commits = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
+        _,self.prs = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
+        self.closed_prs_count = Ghutils.get_element_count(self.prs, 'state', 'closed')
+        self.open_prs_count = Ghutils.get_element_count(self.prs, 'state', 'open')
+        _,self.commits = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
         
-    
-    def __get_element_count(self, json, key, value,):
-        return sum(1 for element in json if element[key] == value)
-    
+        
     def __get_codeowners(self,markdown=True):
         # Retrieve the CODEOWNERS file content and decode it from base64
            status,codeowners_file = self.__query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CODEOWNERS',False)  
