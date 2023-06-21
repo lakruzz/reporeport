@@ -177,6 +177,11 @@ class Ghutils:
               if ":" in line:
                   key, value = line.split(":", 1)
                   headers[key.strip()] = value.strip()
+              else:
+                  if line.startswith("HTTP/"):
+                      # split on the first space
+                      headers["Status-Text"] = line.split(" ", 1)[1]
+                      headers["Status-Code"] = line.split(" ", 2)[1]
           
           return response.returncode,body,headers
       
@@ -185,7 +190,11 @@ class Ghutils:
               print(f"Error: {e.stderr} {ghapi}", file=sys.stderr)
               sys.exit(1)
           else:
-              return e.returncode, f"Error: {e.stderr} {ghapi}" 
+              error_message = e.stderr
+              header = {}
+              header["Status-Code"] = re.search(r"HTTP (\d+)", error_message).group(1) if re.search(r"HTTP (\d+)", error_message) else None
+ 
+              return e.returncode, f"Error: {e.stderr} {ghapi}", header 
 
 
   @staticmethod
