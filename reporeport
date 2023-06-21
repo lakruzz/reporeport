@@ -33,8 +33,10 @@ if __name__ == "__main__":
     exclusive_group = parser.add_mutually_exclusive_group(required=True)
     exclusive_group.add_argument(
         '--file', help='A file containing a list of full names (user/repo) of repositories')
-    exclusive_group.add_argument('--fullname', help='The full name of the repository in the form "org/repo"')
-    exclusive_group.add_argument('--to-issue', action='store_true', help='Indicates that the report is generated from current dir and should be printed to an issue.')
+    exclusive_group.add_argument('--repo', help='The full name of the repository in the form "org/repo"')
+    exclusive_group.add_argument('--this', action='store_true', help='Indicates that the report is generated from current directory')
+    
+    parser.add_argument('--output', help='The name of the output file. "issue" is a special case when used together with --this - It will updates an issue on the repo. If not specified "stdout" is used', default='stdout')
     
     args = parser.parse_args()
 
@@ -47,32 +49,23 @@ if __name__ == "__main__":
         # Extract the organization and repository name from each line in the file and print the report
         for repo in repos:
             org, repo_name = repo.split('/', maxsplit=1)
-            Repo.full_report(org, repo_name)
+            Repo.full_report(org, repo_name, args.output)
    
-    # --fullname
-    elif args.fullname is not None:
-        org, repo_name = args.fullname.split('/', maxsplit=1)
-        Repo.full_report(org, repo_name)
+    # --repo
+    elif args.repo is not None:
+        org, repo_name = args.repo.split('/', maxsplit=1)
+        Repo.full_report(org, repo_name, args.output)
 
-    # --to-issue
-    elif args.to_issue:
-        fullname = Ghutils.get_org_repo_from_current_directory()
-        if fullname is None:
+    # --this
+    elif args.this:
+        repo = Ghutils.get_org_repo_from_current_directory()
+        if repo is None:
             print("Unable to determine the repository name from the current directory. Are you in a repository?", file=sys.stderr)
             sys.exit(1)
-        org, repo_name = fullname.split('/', maxsplit=1)
-        Repo.full_report(org, repo_name) 
+        org, repo_name = repo.split('/', maxsplit=1)
+        Repo.full_report(org, repo_name, args.output) 
 
     # Arguments used incorrectly
     else:
-        print("""
-Usage:
-  reporeport {--org <org> --repo <repo> | --fullname <org/repo> | --file <file>}| --to-issue]
-
-Where:
-  --org <org>       The GitHub organization or user
-  --repo <repo>     The name of the repository
-  --fullname <org/repo>  The full name of the repository in the form "org/repo"
-  --file <file>     A file containing a list of full names (user/repo) of repositories
-  """, file=sys.stderr)
+        print('error', file=sys.stderr)
         sys.exit(1)

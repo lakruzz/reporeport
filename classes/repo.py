@@ -4,6 +4,7 @@ import sys
 import re
 import base64
 import os
+import time
 
 # Add directory of this class to the general class_path
 # to allow import of sibling classes
@@ -22,14 +23,15 @@ class Repo:
         
         _,self.repo = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}')
         _,self.contributors = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
-        _,self.issues = Ghutils.query_github(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
-        _,self.prs = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
+        _,self.issues = Ghutils.query_github_allpages(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
+        _,self.prs = Ghutils.query_github_allpages(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
         _,self.commits = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
         
         self.open_issues_count = self.repo['open_issues_count']
         self.closed_prs_count = Ghutils.get_element_count(self.prs, 'state', 'closed')
         self.open_prs_count = Ghutils.get_element_count(self.prs, 'state', 'open')
         self.closed_issues_count = Ghutils.get_element_count(self.issues, 'state', 'closed')
+        self.issue_title_template = self.org_name+"/"+self.repo_name+" - Report"        
         
     def get_issue_by_title(self,regex):
         json_obj = Ghutils.get_element_by_regex(self.issues,'title',regex)
@@ -39,13 +41,48 @@ class Repo:
             return None
 
     @staticmethod
-    def full_report(org_name, repo_name):
+    def full_report(org_name, repo_name, target: str = 'stdout'):
         my_ghrepo = Repo(org_name, repo_name)
         my_ghrepo.md_repo()
         my_ghrepo.md_contributors()
-        my_ghrepo.md_community_standards()   
-        # print (my_ghrepo.get_issue_by_title('.*CSS.*'))
-        Ghutils.buffer_to_stdout()    
+        my_ghrepo.md_community_standards()
+        Ghutils.merge_buffers()
+        if target == 'stdout':
+            Ghutils.buffer_to_stdout()
+        elif target == 'issue':
+            my_ghrepo.update_issue()
+        else:
+            Ghutils.buffer_to_file(target)
+            
+    def update_issue(self):
+        Ghutils.buffer_to_file('tmp_issue_body.md')
+        retval = 101
+        issue_number = self.get_issue_by_title("^"+self.issue_title_template+"$")
+        try:
+            if issue_number is not None:
+                print(f"Updating issue {issue_number}")
+                result = subprocess.run(['gh', 'issue', 'edit', "{issue_number}", '--body-file', 'tmp_issue_body.md'], capture_output=True, text=True)
+                if result.returncode == 0:                
+                  print(result.stdout)
+                  retval = 0
+                  
+                print(f"Making sure issue {issue_number} is open")
+                result = subprocess.run(['gh', 'issue', 'reopen', str(issue_number) ], capture_output=True, text=True)
+                print(result.stdout)
+                print(result.stderr)
+            else:
+                print(f"Creating issue '{self.issue_title_template}'")
+                result = subprocess.run(['gh', 'issue', 'create', '--title', self.issue_title_template, '--body-file', 'tmp_issue_body.md'], capture_output=True, text=True)
+                if result.returncode == 0:
+                  print (result.stdout)
+                  retval = 0
+                else:
+                  print (result.stderr) 
+                  retval = 1
+        finally:
+            subprocess.run(['rm', 'tmp_issue_body.md'])
+            return retval 
+
         
     def md_community_standards(self):
         Ghutils.print_to_buffer(f"### Community standards\n")
@@ -53,44 +90,53 @@ class Repo:
         self.md_get_readme()
         self.md_get_contributing()
         self.md_get_license()
+        self.md_get_gitginore()
         
     def md_get_license(self):
         status,license_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/LICENSE',False)     
         if status != 0:
-            Ghutils.print_to_buffer(f"- [ ] LICENSE file [(Set it up!)]({Ghutils.about_license_url})")
+            Ghutils.print_to_buffer(f"- [ ] `LICENSE` file [(Set it up!)]({Ghutils.about_license_url})")
         else:
-            Ghutils.print_to_buffer(f"- [x] LICENSE file")
+            Ghutils.print_to_buffer(f"- [x] `LICENSE` file")
+            Ghutils.details_summary_to_buffer("See content of <code>LICENSE</code>","```\n"+base64.b64decode(license_file['content']).decode('utf-8')+"\n```")
+    
+    def md_get_gitginore(self):
+        status,gitignore_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/.gitignore',False)     
+        if status != 0:
+            Ghutils.print_to_buffer(f"- [ ] `.gitignore` file [(Set it up!)]({Ghutils.gitginore_templates_url})")
+        else:
+            Ghutils.print_to_buffer(f"- [x] `.gitignore` file")
+            Ghutils.details_summary_to_buffer("See content of <code>.gitignore</code>","```gitginore\n"+base64.b64decode(gitignore_file['content']).decode('utf-8')+"\n```")
     
     def md_get_readme(self):
         status,readme_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/README.md',False)     
         if status != 0:
-            Ghutils.print_to_buffer(f"- [ ] README.md file [(Set it up!)]({Ghutils.about_readme_url})")
+            Ghutils.print_to_buffer(f"- [ ] `README.md` file [(Set it up!)]({Ghutils.about_readme_url})")
         else:
-            Ghutils.print_to_buffer(f"- [x] README.md file")
+            Ghutils.print_to_buffer(f"- [x] `README.md` file")
+            Ghutils.details_summary_to_buffer("See content of <code>README.md</code>",base64.b64decode(readme_file['content']).decode('utf-8'))
     
     def md_get_contributing(self):
         status,contributing_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CONTRIBUTING.md',False)     
         if status != 0:
+            # Special case: CONTRIBUTING.md file is not found, but CONTRIBUTE.md is found
             status,contributing_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CONTRIBUTE.md',False)     
             if status != 0: 
-                Ghutils.print_to_buffer(f"- [ ] CONTRIBUTING.md file")
+                Ghutils.print_to_buffer(f"- [ ] `CONTRIBUTING.md` file")
             else:
-                Ghutils.print_to_buffer(f"- [x] CONTRIBUTING.md file (Note: found `CONTRIBUTE.md` [(Consider renaming it to `CONTRIBUTING.md`)]({Ghutils.about_contributing_url})")       
+                Ghutils.print_to_buffer(f"- [x] `CONTRIBUTE.md` file - **Note:** [Consider renaming it to `CONTRIBUTING.md`]({Ghutils.about_contributing_url})")
+                Ghutils.details_summary_to_buffer("See content of <code>CONTRIBUTE.md</code>",base64.b64decode(contributing_file['content']).decode('utf-8'))
         else:
-            Ghutils.print_to_buffer(f"- [x] CONTRIBUTING.md file")    
+            Ghutils.print_to_buffer(f"- [x] `CONTRIBUTING.md` file")
+            Ghutils.details_summary_to_buffer("See content of <code>CONTRIBUTING.md</code>",base64.b64decode(contributing_file['content']).decode('utf-8'))
     
-    
-
-
-        
-        
     def md_get_codeowners(self):
         # Retrieve the CODEOWNERS file content and decode it from base64
            status,codeowners_file = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contents/CODEOWNERS',False)  
            if status != 0:
-               Ghutils.print_to_buffer(f"- [ ] CODEOWNERS file [(Set it up!)]({Ghutils.about_codeowners_url})")
+               Ghutils.print_to_buffer(f"- [ ] `CODEOWNERS` file [(Set it up!)]({Ghutils.about_codeowners_url})")
            else:
-               Ghutils.print_to_buffer(f"- [x] CODEOWNERS file")
+               Ghutils.print_to_buffer(f"- [x] `CODEOWNERS` file")
                codeowners = base64.b64decode(codeowners_file['content']).decode('utf-8')
                # Regular expression pattern to match mentions of @user or @team
                owner_pattern = r"@([\w\-\/]+)"
@@ -106,9 +152,10 @@ class Repo:
                    # Remove duplicates and print the owners found in the line
                    if line_owners:
                        owners.extend(line_owners)
-               
+               unique_owners ='' 
                for owner in list(set(owners)):
-                   Ghutils.print_to_buffer(f"  - @{owner}")
+                   unique_owners += f" - @{owner}\n"
+               Ghutils.details_summary_to_buffer("See list of mentioned CODEOWNERS",unique_owners) 
  
     def md_repo(self):
         """Output in MarkDown the details of the repository.
