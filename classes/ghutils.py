@@ -82,10 +82,10 @@ class Ghutils:
   @staticmethod
   def query_github_allpages(ghapi: str, die_on_error: bool = True):
       """
-      Query GitHub's API.
+      Query GitHub's API and compiles the result from all pages if there's more than one.
       More details at https://docs.github.com/en/rest
       Args:
-          ghapi (str): The exact API to query GitHub
+          ghapi (str): The API to query GitHub
           die_on_error: If True, exit the program on error. Default: True
       Returns:
           on success:
@@ -94,35 +94,27 @@ class Ghutils:
           on error:
           int, str: The return code from the query and the error message
       """
-      try:
-          page = 1
-          page_size = 100  # Adjust the desired page size here
-          json_return = []
-  
-          while True:
-              api_url = f"{ghapi}&per_page={page_size}&page={page}"
-              
-              response = subprocess.run(
-                ['gh', 'api', api_url], capture_output=True, text=True, check=True
-              )
-  
-              # Append the pull requests from the current page to the list
-              json_return.extend(json.loads(response.stdout))
-  
-              # Check if the number of pull requests in the current page is smaller than the desired page size
-              if len(json.loads(response.stdout)) < page_size:
-                  break  # Exit the loop if we have fetched all the pull requests
-  
-              page += 1  # Move to the next page
-  
-          return response.returncode, json_return
-  
-      except subprocess.CalledProcessError as e:
-          if die_on_error:
-              print(f"Error: {e.stderr} {api_url}", file=sys.stderr)
-              sys.exit(1)
-          else:
-              return e.returncode, f"Error: {e.stderr} {api_url}" 
+      page = 1
+      page_size = 100  # Adjust the desired page size here
+      json_return = []
+      
+      # Append page size and page number to the original API call
+      api_url = f"{ghapi}&per_page={page_size}&page={page}"
+      
+      # Let the first run die on error (essentially let query_github() handle the error
+      _,json_part = Ghutils.query_github(api_url, True)
+      
+      # Compile the final result
+      json_return.extend(json_part)
+      
+      # Continue if the page was full
+      while len(json_part) == page_size:
+          page += 1 # Move to the next page
+          api_url = f"{ghapi}&per_page={page_size}&page={page}"
+          _,json_part = Ghutils.query_github(api_url, False) #Ignore the error - will handle it by checking the length of the json
+          json_return.extend(json_part)
+      
+      return 0,json_return
 
   @staticmethod
   def query_github(ghapi:str, die_on_error:bool=True):
@@ -130,7 +122,7 @@ class Ghutils:
       Query GitHub's API. 
       More details at https://docs.github.com/en/rest
       Args:
-          api (str): The exact API to query GitHub
+          api (str): The API to query GitHub
           die_on_error: If True, exit the program on error. Default: True
       Returns:
           on success:
@@ -145,13 +137,56 @@ class Ghutils:
               ['gh', 'api', ghapi], capture_output=True, text=True, check=True)
           
           # Parse the JSON output of the API call
+          
           return response.returncode,json.loads(response.stdout)
       except subprocess.CalledProcessError as e:
           if die_on_error:
-              print(f"Error: {e.stderr}", file=sys.stderr)
+              print(f"Error: {e.stderr} {ghapi}", file=sys.stderr)
               sys.exit(1)
           else:
-              return e.returncode, f"Error: {e.stderr}" 
+              return e.returncode, f"Error: {e.stderr} {ghapi}" 
+
+  @staticmethod
+  def query_github_incl_header(ghapi:str, die_on_error:bool=True):
+      """
+      Query GitHub's API. 
+      More details at https://docs.github.com/en/rest
+      Args:
+          api (str): The API to query GitHub
+          die_on_error: If True, exit the program on error. Default: True
+      Returns:
+          on success:
+          int,[]json: The returncode from the query and the json output          
+          
+          on error:
+          int,str: The returncode from the query and the error message
+      """
+      try:
+          # Call the GitHub API
+          response = subprocess.run(
+              ['gh', 'api', "-i", ghapi], capture_output=True, text=True, check=True)
+          
+          # Parse the JSON output of the API call
+          
+          separator_index = response.stdout.find('\n\n')
+          rawheader = response.stdout[:separator_index]
+          body = json.loads(response.stdout[separator_index + 2:])
+          
+          headers = {}
+          for line in rawheader.strip().split("\n"):
+              if ":" in line:
+                  key, value = line.split(":", 1)
+                  headers[key.strip()] = value.strip()
+          
+          return response.returncode,body,headers
+      
+      except subprocess.CalledProcessError as e:
+          if die_on_error:
+              print(f"Error: {e.stderr} {ghapi}", file=sys.stderr)
+              sys.exit(1)
+          else:
+              return e.returncode, f"Error: {e.stderr} {ghapi}" 
+
 
   @staticmethod
   def get_element_by_regex(json:json,key:str,search:str):
@@ -173,3 +208,42 @@ class Ghutils:
         if key in element and regex.search(element[key]):
             return element
     return None
+
+  @staticmethod
+  def get_pull_request_counts(owner: str, repo: str):
+      try:
+          open_prs_url = f"repos/{owner}/{repo}/pulls?state=open"
+          closed_prs_url = f"repos/{owner}/{repo}/pulls?state=closed"
+  
+          open_prs_response = subprocess.run(
+              ['gh', 'api', open_prs_url], capture_output=True, text=True, check=True
+          )
+          open_prs_count = Ghutils.get_total_count_from_header(open_prs_response.stdout)
+  
+          closed_prs_response = subprocess.run(
+              ['gh', 'api', closed_prs_url], capture_output=True, text=True, check=True
+          )
+          closed_prs_count = Ghutils.get_total_count_from_header(closed_prs_response.stdout)
+  
+          return open_prs_count, closed_prs_count
+  
+      except subprocess.CalledProcessError as e:
+          print(f"Error: {e.stderr}", file=sys.stderr)
+          sys.exit(1)
+  
+  @staticmethod
+  def get_total_count_from_header(header: str) -> int:
+      match = re.search(r"page=1>; rel=\"last\", .* page=(\d+)", header)
+      if match:
+          return int(match.group(1))
+      return 0
+  
+  @staticmethod
+  def parse_response_header(header: str) -> dict:
+      headers = {}
+      for line in header.strip().split("\n"):
+          if ":" in line:
+              key, value = line.split(":", 1)
+              headers[key.strip()] = value.strip()
+      return headers
+  

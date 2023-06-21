@@ -21,8 +21,13 @@ class Repo:
         self.org_name = org_name
         self.repo_name = repo_name
         
-        _,self.repo = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}')
+        print(Ghutils.get_pull_request_counts(self.org_name, self.repo_name))
+        
+        
+        _,self.repo, responseheader = Ghutils.query_github_incl_header(f'repos/{self.org_name}/{self.repo_name}')
+        print(responseheader)
         _,self.contributors = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/contributors')
+    
         _,self.issues = Ghutils.query_github_allpages(f"repos/{self.org_name}/{self.repo_name}/issues?state=all")
         _,self.prs = Ghutils.query_github_allpages(f'repos/{self.org_name}/{self.repo_name}/pulls?state=all')
         _,self.commits = Ghutils.query_github(f'repos/{self.org_name}/{self.repo_name}/commits')
