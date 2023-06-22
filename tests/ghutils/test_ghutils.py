@@ -25,14 +25,14 @@ def test_ghutils_get_org_repo_from_current_directory(org_repo):
     
 @pytest.fixture
 def api():
-    return 'repos/mongodb/mongo'
+    return 'mongodb/mongo'
 
 @pytest.mark.dev
 @pytest.mark.smoke
 def test_ghutils_query_github_incl_headers(api, die_on_error=False):
     # Arrange
-    returncode, responsebody, responseheader = Ghutils.query_github_incl_header(f"{api}", die_on_error)
-    _,expected_org,expected_repo = api.split("/")
+    returncode, responsebody, responseheader = Ghutils.query_github_incl_header(f"repos/{api}", die_on_error)
+    expected_org,expected_repo = api.split("/")
     expected_returncode = 0
     expected_status_text = '200 OK'
     expected_status_code = '200'
