@@ -3,12 +3,34 @@ import os
 import re
 import sys
 import subprocess
+import logging
 from io import StringIO
 
 # Add directory of this class to the general class_path
 # to allow import of sibling classes
 class_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(class_path)
+
+# Configure logging
+import logging
+
+# Configure logging for the log file
+file_handler = logging.FileHandler('logs/app.log')
+file_handler.setLevel(logging.DEBUG)
+
+# Define the log formatter
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(module)s - Line:%(lineno)d - %(message)s', '%Y-%m-%d %H:%M:%S')
+
+
+
+file_handler.setFormatter(log_formatter)
+
+logger = logging.getLogger(__name__)
+logger.addHandler(file_handler)
+
+logging.basicConfig(filename='logs/app.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', date_format='%Y-%m-%d %H:%M:%S')
+
+
 
 class Ghutils:
   change_ghname_url =       "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-personal-account-settings/changing-your-github-username#changing-your-username"
@@ -161,6 +183,8 @@ class Ghutils:
           on error:
           int,str: The returncode from the query and the error message
       """
+      logger.debug(f"ghapi: {ghapi}\ndie_on_error: {die_on_error}")
+      
       try:
           # Call the GitHub API
           response = subprocess.run(
@@ -182,6 +206,7 @@ class Ghutils:
                       # split on the first space
                       headers["Status-Text"] = line.split(" ", 1)[1]
                       headers["Status-Code"] = line.split(" ", 2)[1]
+                      
           
           return response.returncode,body,headers
       
