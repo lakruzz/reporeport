@@ -25,8 +25,9 @@ def test_ghutils_get_org_repo_from_current_directory(org_repo):
     
 @pytest.fixture
 def api():
-    return "repos/mongodb/mongo"
+    return 'repos/mongodb/mongo'
 
+@pytest.mark.dev
 def test_ghutils_query_github_incl_headers(api, die_on_error=False):
     # Arrange
     returncode, responsebody, responseheader = Ghutils.query_github_incl_header(f"{api}", die_on_error)
@@ -48,7 +49,7 @@ def test_ghutils_query_github_incl_headers(api, die_on_error=False):
 def badapi():
     return "repos/not_veru_likkely/mongobongo"
 
-@pytest.mark.dev
+
 def test_bad_ghutils_query_github_incl_headers(badapi, die_on_error=False):
     # Arrange
     returncode, responsebody, responseheader = Ghutils.query_github_incl_header(f"{badapi}", die_on_error)
