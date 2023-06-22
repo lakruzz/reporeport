@@ -28,6 +28,7 @@ def api():
     return 'repos/mongodb/mongo'
 
 @pytest.mark.dev
+@pytest.mark.smoke
 def test_ghutils_query_github_incl_headers(api, die_on_error=False):
     # Arrange
     returncode, responsebody, responseheader = Ghutils.query_github_incl_header(f"{api}", die_on_error)
