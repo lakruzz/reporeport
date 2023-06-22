@@ -4,6 +4,7 @@ import re
 import sys
 import subprocess
 import logging
+import inspect
 from io import StringIO
 
 # Add directory of this class to the general class_path
@@ -19,7 +20,7 @@ file_handler = logging.FileHandler('logs/app.log')
 file_handler.setLevel(logging.DEBUG)
 
 # Define the log formatter
-log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(module)s - Line:%(lineno)d - %(message)s', '%Y-%m-%d %H:%M:%S')
+log_formatter = logging.Formatter('\n%(asctime)s - %(levelname)s\n  Name: %(name)s\n  Function: %(funcName)s()\n  Module: %(module)s\n  File: %(filename)s(%(lineno)d)\n%(message)s', '%Y-%m-%d %H:%M:%S')
 
 
 
@@ -183,7 +184,7 @@ class Ghutils:
           on error:
           int,str: The returncode from the query and the error message
       """
-      logger.debug(f"ghapi: {ghapi}\ndie_on_error: {die_on_error}")
+      logger.info(Ghutils.get_function_realtime_reader())
       
       try:
           # Call the GitHub API
@@ -194,7 +195,7 @@ class Ghutils:
           
           separator_index = response.stdout.find('\n\n')
           rawheader = response.stdout[:separator_index]
-          body = json.loads(response.stdout[separator_index + 2:])
+          body = json.loads(response.stdout[separator_index + 2:])  
           
           headers = {}
           for line in rawheader.strip().split("\n"):
@@ -207,6 +208,7 @@ class Ghutils:
                       headers["Status-Text"] = line.split(" ", 1)[1]
                       headers["Status-Code"] = line.split(" ", 2)[1]
                       
+          
           
           return response.returncode,body,headers
       
@@ -281,3 +283,11 @@ class Ghutils:
               headers[key.strip()] = value.strip()
       return headers
   
+  @staticmethod
+  def get_function_realtime_reader():
+      frame = inspect.currentframe().f_back
+      args, _, _, values = inspect.getargvalues(frame)
+      function_name = frame.f_code.co_name
+      parameter_values = {arg: values[arg] for arg in args}
+      return f"Trace:\n  {function_name}({parameter_values})"
+    
